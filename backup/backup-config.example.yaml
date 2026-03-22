@@ -1,0 +1,48 @@
+# backup-config.example.yaml
+# Full example showing file collection, database dumps, and service hooks.
+
+backup_name: "vaultwarden_full"
+target_base_dir: "/srv/backups/vaultwarden"
+keep_last: 5  # 0 = keep everything
+
+structure:
+  vaultwarden:
+    config:
+      source_dir: "/opt/vaultwarden/data"
+      include: "*.json"
+      exclude: "*-tmp.json"
+    attachments:
+      source_dir: "/opt/vaultwarden/data/attachments"
+      include: "*"
+      # Stop the container before copying attachments for consistency.
+      # Restart is always attempted, and a failed restart makes the run fail.
+      pre_command: "docker stop vaultwarden"
+      post_command: "docker start vaultwarden"
+  logs:
+    application:
+      source_dir: "/var/log/vaultwarden"
+      include: "*.{log,txt}"
+
+# Optional: database dumps run BEFORE file collection.
+databases:
+  vaultwarden_sqlite:
+    provider: "sqlite"
+    db_path: "/opt/vaultwarden/data/db.sqlite3"
+    # sqlite3 .backup is a safe hot copy - no service stop needed.
+
+  # Direct PostgreSQL connection (requires pg_dump on host):
+  # authentik_pg:
+  #   provider: "postgres"
+  #   dbname: "authentik"
+  #   host: "localhost"
+  #   port: 5432
+  #   user: "authentik"
+  #   password: "changeme"
+  #   extra_args: ["--no-owner"]
+
+  # Docker exec PostgreSQL (for containerized databases without exposed ports):
+  # immich_db:
+  #   provider: "docker_postgres"
+  #   container: "immich_postgres"
+  #   dbname: "immich"
+  #   user: "immich"

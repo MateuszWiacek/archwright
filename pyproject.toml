@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "archwright"
+version = "1.0.0"
+description = "Config-driven backup tool with database dumps, service hooks, restore, and rotation."
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "PyYAML>=6.0",
+]
+keywords = ["backup", "zip", "archiving", "rotation", "cli"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Archiving :: Backup",
+    "Topic :: Utilities",
+]
+
+[project.scripts]
+archwright = "backup.cli:main"
+
+[tool.setuptools]
+packages = ["backup"]
+include-package-data = false
+
+[tool.setuptools.package-data]
+backup = ["backup-config.example.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "unit: Fast, no disk I/O for core logic",
+    "integration: Filesystem interactions via tmp_path",
+    "e2e: Full pipeline and CLI tests",
+    "edge: Edge cases and resilience",
+    "restore: Restore pipeline tests",
+]
+addopts = "-v --tb=short --strict-markers"
