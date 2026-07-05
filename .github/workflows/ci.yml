@@ -2,30 +2,100 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
-    branches: [main]
+    branches: [main, adding-gui]
+  workflow_dispatch:
+
+# All third-party actions are SHA-pinned. Floating tags (@v4, @main) can be
+# hijacked by an attacker who compromises a maintainer account (see
+# tj-actions/changed-files / CVE-2025-30066, March 2025). Dependabot bumps the
+# pinned SHAs when new releases ship and leaves the version in the comment.
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871  # v4.2.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.11"
-      - run: pip install ruff
-      - run: ruff check backup/ tests/
+      - run: pip install "ruff==0.7.0"
+      - run: ruff check backup/ archwright_web/ tests/
+
+  bandit:
+    name: bandit (python security lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871  # v4.2.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.11"
+      - run: pip install "bandit==1.7.10"
+      # Skips and rationale (all documented in docs/threat-model.md):
+      #   B101 - assert as developer guard; trusted code paths
+      #   B404 - subprocess import (intrinsic to a CLI orchestrator)
+      #   B602 - shell=True for pre_command/post_command hooks (admin-controlled
+      #          YAML is the trust boundary; running arbitrary shell is the feature)
+      #   B603 - subprocess call without shell (we use shlex.quote where the
+      #          input comes from inventory YAML)
+      #   B607 - partial executable paths (pg_dump, sqlite3, docker rely on PATH)
+      - run: bandit -r backup/ archwright_web/ -ll --skip B101,B404,B602,B603,B607
 
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871  # v4.2.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install pytest pyyaml
-      - run: pytest -q
+      - run: pip install "pytest==8.4.2" "pyyaml==6.0.3"
+      - run: pytest -q --ignore=tests/test_web_routes.py --ignore=tests/test_web_services.py
+
+  web-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871  # v4.2.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.11"
+      - run: pip install --require-hashes -r requirements-web.lock
+      - run: pip install "pytest==8.4.2"
+      - run: pip install --no-deps .
+      - run: pytest -q tests/ -m web
+
+  audit:
+    name: pip-audit (CVE scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871  # v4.2.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.11"
+      - run: pip install "pip-audit==2.7.3"
+      - run: pip-audit -r requirements-web.lock --disable-pip
+
+  lock-fresh:
+    name: lockfile up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871  # v4.2.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.10"
+      - run: pip install "pip-tools==7.5.3"
+      - run: |
+          pip-compile --extra=web --strip-extras --generate-hashes \
+            --output-file=requirements-web.lock --quiet pyproject.toml
+          git diff --exit-code requirements-web.lock
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871  # v4.2.1
+      - run: docker build -t archwright:test .
+      - run: docker run --rm archwright:test --help
+      - run: docker run --rm archwright:test serve --help

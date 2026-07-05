@@ -2,8 +2,9 @@
 
 ## Prerequisites
 
-- Python 3.8+
+- Python 3.10+
 - PyYAML (`pip install pyyaml`)
+- Optional: web dependencies (`pip install ".[web]"`) for `archwright serve`
 - Optional: `sqlite3` for SQLite database dumps
 - Optional: `pg_dump` for PostgreSQL database dumps
 - Optional: `docker` for Docker-hosted PostgreSQL dumps
@@ -17,11 +18,20 @@ archwright backup --config /etc/archwright/myapp.yaml
 # Preview without creating files
 archwright backup --config /etc/archwright/myapp.yaml --dry-run
 
+# Preview backup plan with JSON output
+archwright backup --config /etc/archwright/myapp.yaml --dry-run --json
+
 # Validate config and runtime prerequisites (no side effects)
 archwright validate --config /etc/archwright/myapp.yaml
 
+# Validate with JSON output for automation
+archwright validate --config /etc/archwright/myapp.yaml --json
+
 # List available archives
 archwright list --config /etc/archwright/myapp.yaml
+
+# List archives with JSON output for automation
+archwright list --config /etc/archwright/myapp.yaml --json
 
 # Restore from an archive
 archwright restore --config /etc/archwright/myapp.yaml \
@@ -36,11 +46,132 @@ archwright restore --config myapp.yaml --archive backup.zip --overwrite
 
 # Preview a restore
 archwright restore --config myapp.yaml --archive backup.zip --dry-run
+
+# Preview a restore with JSON output
+archwright restore --config myapp.yaml --archive backup.zip --dry-run --json
+
+# Start the optional web UI
+archwright serve --config /etc/archwright/myapp.yaml
+
+# Start the optional web UI for multiple local configs
+archwright serve --config-dir /etc/archwright
+
+# Start the optional web UI from an inventory file
+archwright serve --inventory /etc/archwright/inventory.yaml
 ```
 
 All subcommands accept `--verbose` / `-v` (DEBUG output) and `--quiet` / `-q` (suppress INFO, show only warnings and errors). These flags are mutually exclusive.
 
+`list`, `validate`, `backup --dry-run`, and `restore --dry-run` also accept `--json`. In JSON mode, stdout is reserved for structured machine-readable output, including error responses.
+
 Exit codes: `0` means success, `1` means error.
+
+## Web UI
+
+The optional web UI is meant for local or trusted LAN administration.
+
+```bash
+pip install ".[web]"
+archwright serve --config /etc/archwright/myapp.yaml
+```
+
+For a reproducible install of the web extras (the exact versions used
+in CI and in the shipped Docker image), use the lockfile:
+
+```bash
+pip install -r requirements-web.lock
+pip install --no-deps .
+```
+
+Regenerate the lockfile after changing `[project.optional-dependencies]`.
+Run it on the **minimum supported Python** (3.10), so the lock includes
+backport dependencies that only apply below newer versions (for example
+`exceptiongroup`, required by `anyio` on Python < 3.11). Generating on a
+newer interpreter produces an incomplete lock, and the `lock-fresh` CI
+job (which runs on 3.10) will fail.
+
+```bash
+pip install pip-tools
+pip-compile --extra=web --strip-extras --generate-hashes \
+  --output-file=requirements-web.lock pyproject.toml
+```
+
+For a local dashboard over multiple configs, put YAML files in one directory:
+
+```bash
+archwright serve --config-dir /etc/archwright
+```
+
+Default bind:
+
+```text
+http://127.0.0.1:8471
+```
+
+Explicit LAN bind:
+
+```bash
+archwright serve \
+    --config-dir /etc/archwright \
+    --host 0.0.0.0 \
+    --port 8471
+```
+
+Current scope:
+
+- one config or one local config directory per web process
+- experimental inventory mode for local nodes and SSH actions, including remote live backup and guarded remote restore
+- dashboard, archive browser, log viewer
+- backup, dry-run, and validate actions
+- guarded restore wizard
+
+The web UI should sit behind a trusted network boundary or reverse proxy. It can trigger writes and restore actions, so treat it as an administrative interface.
+
+For SSH inventory nodes, prepare OpenSSH outside archwright first. The user running `archwright serve` must already trust the host in `~/.ssh/known_hosts`, and it should use a dedicated web UI key rather than a personal SSH key. Archwright uses `BatchMode=yes`, so password prompts fail instead of hanging the UI. If an inventory command needs sudo, allow only the exact archwright wrapper through sudoers and use `sudo -n /path/to/archwright`; do not grant broad sudo for the web UI key.
+
+### Docker
+
+Docker is the preferred packaging option for the web UI on hosts where Python packaging is awkward.
+
+```bash
+docker build -t archwright:local .
+docker run --rm \
+    -p 127.0.0.1:8471:8471 \
+    -v /etc/archwright:/config:ro \
+    -v /srv/backups:/backups \
+    archwright:local
+```
+
+The CLI remains the execution engine. Container configs must use paths that exist inside the container. For details, see [docker.md](docker.md).
+
+### Web UI systemd service
+
+```ini
+# /etc/systemd/system/archwright-web.service
+[Unit]
+Description=archwright web UI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/archwright serve --config-dir /etc/archwright
+Restart=on-failure
+User=archwright
+Group=archwright
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/backups /opt
+
+[Install]
+WantedBy=multi-user.target
+```
+
+If the config uses Docker-oriented providers or hooks, the service user needs the same Docker access that a CLI run would need.
+
+For planned multi-config and multi-node control, see [control-plane-roadmap.md](control-plane-roadmap.md).
 
 ## Cron
 

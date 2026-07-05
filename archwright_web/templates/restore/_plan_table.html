@@ -1,0 +1,50 @@
+{% if error %}
+<div class="rounded border border-red-500/30 bg-red-500/10 px-4 py-3 mb-4">
+    <p class="text-sm text-red-400 font-mono">{{ error }}</p>
+</div>
+{% endif %}
+
+<div class="panel rounded-lg overflow-hidden">
+    <div class="px-4 py-3 border-b border-hull-700/50 flex items-center justify-between">
+        <span class="text-xs font-mono font-bold text-hull-400 uppercase tracking-wider">
+            {{ plan | length }} file(s) to restore
+        </span>
+        {% if conflicts %}
+        <span class="text-xs font-mono font-bold text-amber-400">
+            {{ conflicts | length }} conflict(s)
+        </span>
+        {% endif %}
+    </div>
+
+    {% if plan %}
+    <div class="max-h-96 overflow-y-auto">
+        <table class="min-w-full">
+            <thead>
+                <tr class="border-b border-hull-700/50">
+                    <th class="px-4 py-2 text-left text-xs font-mono font-bold text-hull-400 uppercase tracking-wider">Archive Path</th>
+                    <th class="px-4 py-2 text-left text-xs font-mono font-bold text-hull-400 uppercase tracking-wider">Target</th>
+                    <th class="px-4 py-2 text-center text-xs font-mono font-bold text-hull-400 uppercase tracking-wider">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-hull-800/50">
+                {% set conflict_paths = conflicts | map(attribute='target_path') | map('string') | list %}
+                {% for entry in plan %}
+                <tr class="hover:bg-hull-800/30 transition-colors">
+                    <td class="px-4 py-2 text-xs font-mono text-hull-300 truncate max-w-xs">{{ entry.archive_path }}</td>
+                    <td class="px-4 py-2 text-xs font-mono text-hull-400 truncate max-w-sm">{{ entry.target_path }}</td>
+                    <td class="px-4 py-2 text-center">
+                        {% if entry.target_path | string in conflict_paths %}
+                        <span class="text-xs font-mono font-bold text-amber-400">EXISTS</span>
+                        {% else %}
+                        <span class="text-xs font-mono text-emerald-500">OK</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="px-4 py-8 text-sm text-hull-600 font-mono text-center">No files match the selected prefixes</p>
+    {% endif %}
+</div>

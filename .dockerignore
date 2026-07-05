@@ -1,0 +1,9 @@
+.*
+!.dockerignore
+__pycache__/
+*.egg-info/
+*.log
+Thumbs.db
+build/
+dist/
+future_prompt

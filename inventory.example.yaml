@@ -1,0 +1,20 @@
+nodes:
+  backup-node:
+    executor: ssh
+    host: backup-node.example
+    user: archwright
+    port: 22
+    config_dir: /etc/archwright
+    command: /usr/local/bin/archwright
+
+  app-node:
+    executor: ssh
+    host: app-node.example
+    user: archwright
+    port: 22
+    config_dir: /etc/archwright
+    command: archwright
+    # The user running "archwright serve" must already have this host in
+    # ~/.ssh/known_hosts and must be able to authenticate non-interactively.
+    # If a command needs sudo, allow only the exact archwright wrapper through
+    # sudoers and use "sudo -n /path/to/archwright". Do not grant broad sudo.

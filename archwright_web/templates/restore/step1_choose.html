@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% set active_page = "restore" %}
+{% block title %}Restore - Archwright{% endblock %}
+
+{% block content %}
+<h1 class="text-xl font-bold text-hull-100 font-mono tracking-tight mb-6">Restore Wizard</h1>
+
+{% if is_multi_config and jobs %}
+<div class="panel rounded-lg px-4 py-3 mb-6">
+    <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-mono text-hull-500 uppercase tracking-wider mr-2">Config</span>
+        {% for item in jobs %}
+        <a href="/restore/?job={{ item.id }}"
+           class="{% if item.id == selected_job_id %}bg-sky-900/50 border-sky-600/50 text-sky-200{% else %}bg-hull-900/50 border-hull-700/50 text-hull-400 hover:text-hull-200 hover:border-hull-600{% endif %} rounded border px-3 py-1.5 text-xs font-mono transition-colors">
+            {{ item.id }}{% if item.error %} !{% endif %}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="rounded border border-red-500/30 bg-red-500/10 px-4 py-3 mb-6">
+    <p class="text-sm text-red-400 font-mono">{{ error }}</p>
+</div>
+{% endif %}
+
+<div class="panel rounded-lg p-6">
+    <h2 class="text-sm font-mono font-bold text-hull-300 uppercase tracking-wider mb-4">Step 1 &mdash; Choose Archive</h2>
+
+    {% if archives %}
+    <form method="post" action="/restore/plan{{ job_query | default('') }}">
+        <div class="space-y-2">
+            {% for archive in archives | reverse %}
+            <label class="flex items-center gap-3 p-3 rounded border border-hull-700/30 hover:border-sky-500/30 hover:bg-hull-800/30 cursor-pointer transition-colors">
+                <input type="radio" name="archive" value="{{ archive.filename }}"
+                       class="text-sky-500 focus:ring-sky-500/30"
+                       {% if loop.first %}checked{% endif %}>
+                <span class="font-mono text-sm text-hull-200">{{ archive.filename }}</span>
+                <span class="text-xs text-hull-500 font-mono ml-auto">{{ "%.2f" | format(archive.size_mb) }} MiB</span>
+                <span class="text-xs text-hull-600 font-mono">{{ archive.modified.strftime('%Y-%m-%d %H:%M') }}</span>
+            </label>
+            {% endfor %}
+        </div>
+
+        <div class="mt-6 flex justify-end">
+            <button type="submit"
+                    class="rounded bg-sky-600 hover:bg-sky-500 px-4 py-2 text-sm font-mono font-bold text-white transition-colors">
+                Plan Restore
+            </button>
+        </div>
+    </form>
+    {% else %}
+    <p class="text-sm text-hull-600 font-mono text-center py-8">No archives found{% if config %} in {{ config.target_base_dir }}{% endif %}</p>
+    {% endif %}
+</div>
+{% endblock %}

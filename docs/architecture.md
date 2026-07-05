@@ -20,7 +20,31 @@ backup/
 ├── db_dump.py           Database dump providers (PostgreSQL, Docker PostgreSQL, SQLite) + staging
 ├── restore.py           Archive planning, conflict detection, atomic extraction
 │
-└── cli.py               Subcommand dispatch, pipeline orchestration, service hooks
+├── json_output.py       JSON payload formatters for --json output
+├── orchestrator.py      Pipeline workflows (run, run_restore, run_list, run_validate) + service hooks
+└── cli.py               Argparse, subcommand dispatch, main entry point
+
+archwright_web/
+├── app.py               FastAPI app factory and router registration
+├── server.py            Uvicorn launcher used by archwright serve
+│
+├── routers/             HTTP route handlers
+│   ├── dashboard.py     Config/job dashboard
+│   ├── jobs.py          Backup, dry-run, validate, status, live logs
+│   ├── archives.py      Archive listing, download, ZIP entry inspection
+│   ├── logs.py          Log file viewer
+│   ├── restore.py       Guarded restore wizard
+│   ├── config_editor.py Config preview and YAML export
+│   └── preview.py       Glob preview endpoint
+│
+├── services/            Web-facing service layer
+│   ├── archive_service.py
+│   ├── collector_service.py
+│   ├── config_service.py
+│   └── job_runner.py
+│
+├── templates/           Jinja2 templates
+└── static/              Static assets
 ```
 
 ## Dependency graph
@@ -28,8 +52,8 @@ backup/
 ```text
 Two independent roots (no mutual imports):
 
-  constants.py    Shared by: config, archive, db_dump, restore, cli, logging_setup
-  models.py       Shared by: config, archive, collector, db_dump, restore, cli
+  constants.py    Shared by: config, archive, db_dump, restore, orchestrator, logging_setup
+  models.py       Shared by: config, archive, collector, db_dump, restore, orchestrator, json_output
 
 Middle layer (import only from the roots above):
 
@@ -40,13 +64,24 @@ Middle layer (import only from the roots above):
   db_dump.py      <- models, constants
   restore.py      <- models, constants
   rotation.py     <- (stdlib only)
+  json_output.py  <- models (pure formatting, no pipeline)
 
-Top layer (orchestrator):
+Pipeline layer:
 
-  cli.py          <- all of the above
+  orchestrator.py <- all middle-layer modules + json_output
+
+Entry point:
+
+  cli.py          <- orchestrator, constants
+
+Optional web layer:
+
+  archwright_web.app       <- FastAPI, Jinja2, routers
+  archwright_web.routers   <- services
+  archwright_web.services  <- backup.orchestrator (lazy), config/archive/restore/collector helpers
 ```
 
-Key property: the graph is acyclic and flat. `cli.py` is the only module that imports broadly. `restore.py` and `db_dump.py` do not depend on each other.
+Key property: the core graph is acyclic and flat. `orchestrator.py` is the only module that imports broadly across the pipeline. `cli.py` is a thin shell over the orchestrator. The web layer depends on the core through `backup.orchestrator`, but the core does not depend on the web layer.
 
 ## Data flow: backup
 
@@ -83,6 +118,36 @@ execute_restore()  [RestoreEntry] + ZIP data -> extracted files (atomic)
 ```
 
 Restore is intentionally two-phase. `plan_restore()` has no filesystem side effects. `execute_restore()` performs the writes. This separation enables dry-run, conflict detection, and selective prefix filtering.
+
+## Data flow: web UI
+
+```text
+archwright serve --config myapp.yaml
+archwright serve --config-dir /etc/archwright
+archwright serve --inventory inventory.yaml
+  -> archwright_web.server.run_server()
+  -> archwright_web.app.create_app()
+  -> config registry selects one config job
+  -> dashboard / archives / logs / config / jobs / restore routers
+```
+
+The web UI accepts one config path, a config directory, or an inventory file. Directory mode discovers local `*.yaml` / `*.yml` files. Inventory mode discovers local node config directories and SSH node config files. Stable job ids are built from filenames and scoped with `?job=<id>`.
+
+Local backup and validation actions use `JobRunner`, which calls the existing CLI-level functions in a background thread:
+
+```text
+POST /jobs/backup    -> JobRunner.run_backup()    -> backup.orchestrator.run()
+POST /jobs/validate  -> JobRunner.run_validate()  -> backup.orchestrator.run_validate()
+POST /restore/execute -> restore_orchestrator -> JobRunner.run_restore()
+```
+
+SSH inventory jobs use `SSHExecutor` for archive listing, validate, backup
+dry-run, remote live backup, restore dry-run planning, and remote live restore.
+Remote live backup and remote live restore both run through `JobRunner` with streaming log capture.
+
+`JobRunner` currently uses one process-local lock, so only one web-triggered job runs at a time. This is deliberate for the first GUI version.
+
+Local archive and log views read from the configured `target_base_dir`. Routes validate filenames before joining paths to avoid traversal outside the backup directory. Remote archive lists come from `archwright list --json`; remote ZIP download, entry inspection, and log viewing are not wired yet.
 
 ## Module responsibilities
 
@@ -137,8 +202,22 @@ The orchestrator and command dispatcher:
 - `run_restore()`: restore workflow
 - `run_list()`: archive listing
 - `run_validate()`: config + runtime prerequisite validation (no side effects)
+- `serve`: optional web UI launcher
 
 Service hook orchestration also lives here. `_collect_service_hooks()` deduplicates hooks, `_run_hook()` executes them, and the `finally` block guarantees restart attempts.
+
+### archwright_web
+
+Optional web control surface:
+
+- dashboard for one config or multiple local config jobs
+- experimental inventory mode with SSH control actions
+- archive and log browser
+- backup, dry-run, and validate triggers
+- guarded restore wizard
+- config preview and YAML export
+
+The web layer is not the source of truth. The CLI and YAML config remain the source of truth. The web layer should keep delegating to core modules or CLI-level orchestration instead of duplicating backup behavior.
 
 ## Error handling strategy
 
@@ -169,5 +248,6 @@ The flat module graph makes isolated testing straightforward:
 - Integration: file collection, rotation, `PostgresProvider`, `DockerPostgresProvider`, `SqliteProvider`, `run_dumps()`
 - E2E: full backup workflow, CLI argument parsing, hook failure behavior, restore pipeline pieces
 - Edge: corrupt archives, dry-run semantics, cleanup on error, path traversal, collisions
+- Web: FastAPI route behavior, archive/log safety, job runner locking, restore wizard flow
 
-Markers in `pytest`: `unit`, `integration`, `e2e`, `edge`, `restore`.
+Markers in `pytest`: `unit`, `integration`, `e2e`, `edge`, `restore`, `web`.

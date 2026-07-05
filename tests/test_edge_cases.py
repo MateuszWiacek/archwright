@@ -24,7 +24,7 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from backup.cli import run, _ensure_target_dir
+from backup.orchestrator import run, _ensure_target_dir
 from backup.collector import collect_files, _walk_safe
 from backup.config import validate_source_dirs
 from backup.archive import create_archive

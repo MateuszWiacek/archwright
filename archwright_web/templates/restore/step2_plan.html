@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% set active_page = "restore" %}
+{% block title %}Restore Plan - Archwright{% endblock %}
+
+{% block content %}
+<h1 class="text-xl font-bold text-hull-100 font-mono tracking-tight mb-2">Restore Plan</h1>
+<p class="text-xs text-hull-500 font-mono mb-6">Archive: <span class="text-hull-300">{{ archive }}</span></p>
+
+{% if is_remote %}
+<div class="rounded border border-sky-500/30 bg-sky-500/10 px-4 py-3 mb-6">
+    <p class="text-sm text-sky-300 font-mono">
+        Remote restore: archwright will run on the remote node over SSH. Logs stream back to this view.
+    </p>
+</div>
+{% endif %}
+
+<form id="restore-confirm-form" method="post" action="/restore/confirm{{ job_query | default('') }}">
+    <input type="hidden" name="archive" value="{{ archive }}">
+    <input type="hidden" name="prefix_filter_applied" value="1">
+
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <!-- Prefix filter sidebar -->
+    <div class="panel rounded-lg p-4">
+        <h2 class="text-xs font-mono font-bold text-hull-400 uppercase tracking-wider mb-3">Filter by prefix</h2>
+        <div class="space-y-2">
+            {% for prefix in prefixes %}
+            <label class="flex items-center gap-2 text-sm font-mono text-hull-300 cursor-pointer hover:text-hull-100">
+                <input type="checkbox" name="prefixes" value="{{ prefix }}" checked
+                       hx-post="/restore/plan/filter{{ job_query | default('') }}" hx-target="#plan-table" hx-swap="innerHTML"
+                       hx-include="#restore-confirm-form"
+                       class="rounded text-sky-500 focus:ring-sky-500/30">
+                {{ prefix }}
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Plan table -->
+    <div class="lg:col-span-3">
+        <div id="plan-table">
+            {% include "restore/_plan_table.html" %}
+        </div>
+
+        <div class="mt-6">
+            {% if conflicts %}
+            <label class="flex items-center gap-2 mb-4 text-sm font-mono text-amber-400 cursor-pointer">
+                <input type="checkbox" name="overwrite" class="rounded text-amber-500 focus:ring-amber-500/30">
+                Overwrite {{ conflicts | length }} existing file(s)
+            </label>
+            {% endif %}
+
+            <div class="flex items-center gap-3">
+                <a href="/restore/{{ job_query | default('') }}"
+                   class="rounded border border-hull-600 px-4 py-2 text-sm font-mono text-hull-400 hover:text-hull-200 hover:border-hull-400 transition-colors">
+                    Back
+                </a>
+                <button type="submit"
+                        class="rounded bg-sky-600 hover:bg-sky-500 px-4 py-2 text-sm font-mono font-bold text-white transition-colors"
+                        {% if not plan %}disabled{% endif %}>
+                    Continue
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+</form>
+{% endblock %}

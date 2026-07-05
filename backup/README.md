@@ -2,7 +2,8 @@
 
 Config-driven backup tool with database dumps, service orchestration, restore, and archive rotation. Reads a YAML file, collects files and database dumps, packages them into a compressed archive, and rotates old backups.
 
-Cross-platform (Linux / Windows) · Python 3.8+ · Single Python package dependency (PyYAML).
+Cross-platform (Linux / Windows) · Python 3.10+ · Core dependency: PyYAML.
+Optional web dependencies are installed with `.[web]`.
 
 ## Quick start
 
@@ -12,19 +13,28 @@ pip install .
 # Backup
 archwright backup --config backup-config.yaml
 archwright backup --config backup-config.yaml --dry-run
+archwright backup --config backup-config.yaml --dry-run --json
 
 # Validate config and runtime prerequisites
 archwright validate --config backup-config.yaml
+archwright validate --config backup-config.yaml --json
 
 # List archives
 archwright list --config backup-config.yaml
+archwright list --config backup-config.yaml --json
 
 # Restore
 archwright restore --config backup-config.yaml --archive /srv/backups/latest.zip
+archwright restore --config backup-config.yaml --archive latest.zip --dry-run --json
 archwright restore --config backup-config.yaml --archive latest.zip --only app/config --overwrite
 
 # Module entry point
 python -m backup backup --config backup-config.yaml
+
+# Optional web UI
+archwright serve --config backup-config.yaml
+# or
+archwright serve --config-dir /etc/archwright
 ```
 
 ## Project structure
@@ -43,6 +53,8 @@ backup/
 ├── restore.py         # Archive planning, conflict detection, atomic extraction
 ├── logging_setup.py   # Logger factory (stdout plus file)
 └── cli.py             # Subcommand dispatch (backup/restore/list/validate), service hooks
+
+archwright_web/        # Optional FastAPI web UI, installed with web extras
 ```
 
 Dependency graph is flat and acyclic. `restore.py` and `db_dump.py` each depend only on `models.py` plus `constants.py`, with no coupling to each other.
@@ -55,6 +67,8 @@ Dependency graph is flat and acyclic. `restore.py` and `db_dump.py` each depend 
 
 **Validation**: `archwright validate` checks config shape, target directory preflight, source directories, tool availability, and provider-specific runtime prerequisites without creating files or running dumps.
 
+**Machine-readable output**: `archwright list --json`, `archwright validate --json`, backup dry-runs, and restore dry-runs emit structured JSON for automation and web UI control paths.
+
 **Two-phase restore**: `plan_restore()` reads only the ZIP central directory with no filesystem writes. `execute_restore()` uses atomic temp-file-then-rename writes. Path traversal in archive entries is rejected at plan time.
 
 **Metadata stripping**: archive entries carry fixed `0644` permissions. Source file permissions and ownership never leak.
@@ -63,6 +77,10 @@ Dependency graph is flat and acyclic. `restore.py` and `db_dump.py` each depend 
 
 **Atomic archives**: the ZIP is written to `.zip.tmp` first, then renamed. A crash mid-write never leaves a corrupt archive.
 
+**Optional web UI**: `archwright serve` exposes a local FastAPI dashboard for one config or a directory of local configs. It delegates to the same CLI/core behavior and should stay a thin control surface.
+
 For the full YAML reference see [docs/configuration.md](../docs/configuration.md).
 For cron, systemd, and Ansible deployment see [docs/deployment.md](../docs/deployment.md).
+For Docker usage see [docs/docker.md](../docs/docker.md).
 For the module dependency graph see [docs/architecture.md](../docs/architecture.md).
+For web UI behavior see [docs/web-ui.md](../docs/web-ui.md).

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% set active_page = "archives" %}
+{% block title %}Log: {{ filename }} - Archwright{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-xl font-bold text-hull-100 font-mono tracking-tight">{{ filename }}</h1>
+        <p class="text-xs text-hull-500 font-mono mt-1">{{ lines | length }} lines</p>
+    </div>
+    <a href="/logs/{{ filename }}/raw{{ job_query | default('') }}"
+       class="rounded border border-hull-600 bg-hull-800 px-3 py-1.5 text-xs font-mono font-medium text-hull-200 hover:bg-hull-700 hover:border-hull-500 transition-colors"
+       hx-boost="false">
+        DOWNLOAD RAW
+    </a>
+</div>
+
+<div class="panel rounded-lg overflow-hidden">
+    <div class="max-h-[75vh] overflow-y-auto">
+        <pre class="text-xs font-mono p-4 leading-5"><code>{% for line in lines %}{% if "ERROR" in line %}<span class="log-ERROR">{{ line }}</span>
+{% elif "WARNING" in line %}<span class="log-WARNING">{{ line }}</span>
+{% elif "DEBUG" in line %}<span class="log-DEBUG">{{ line }}</span>
+{% else %}<span class="text-hull-300">{{ line }}</span>
+{% endif %}{% endfor %}</code></pre>
+    </div>
+</div>
+{% endblock %}

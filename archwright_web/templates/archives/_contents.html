@@ -1,0 +1,47 @@
+<div class="panel rounded-lg overflow-hidden">
+    <div class="px-4 py-3 border-b border-hull-700/50">
+        <h3 class="text-sm font-mono font-bold text-hull-200">{{ filename }}</h3>
+        <p class="text-xs text-hull-500 font-mono mt-0.5">{{ entries | length }} entries</p>
+    </div>
+    {% if entries %}
+    <div class="max-h-96 overflow-y-auto">
+        <table class="min-w-full">
+            <thead class="sticky top-0 bg-hull-900 border-b border-hull-700/50">
+                <tr>
+                    <th class="px-4 py-2 text-left text-xs font-mono font-bold text-hull-400 uppercase tracking-wider">Path</th>
+                    <th class="px-4 py-2 text-right text-xs font-mono font-bold text-hull-400 uppercase tracking-wider">Size</th>
+                    <th class="px-4 py-2 text-right text-xs font-mono font-bold text-hull-400 uppercase tracking-wider">Compressed</th>
+                    <th class="px-4 py-2 text-right text-xs font-mono font-bold text-hull-400 uppercase tracking-wider">Ratio</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-hull-800/30">
+                {% for entry in entries %}
+                {% if not entry.is_dir %}
+                <tr class="hover:bg-hull-800/30 transition-colors">
+                    <td class="px-4 py-1.5 text-xs font-mono text-hull-300">
+                        <a href="/archives/{{ filename }}/entry?path={{ entry.path }}{{ job_query_amp | default('') }}"
+                           class="hover:text-sky-400 transition-colors" target="_blank" hx-boost="false">{{ entry.path }}</a>
+                    </td>
+                    <td class="px-4 py-1.5 text-xs font-mono text-hull-500 text-right">
+                        {% if entry.size < 1024 %}{{ entry.size }} B
+                        {% elif entry.size < 1048576 %}{{ "%.1f" | format(entry.size / 1024) }} KiB
+                        {% else %}{{ "%.1f" | format(entry.size / 1048576) }} MiB{% endif %}
+                    </td>
+                    <td class="px-4 py-1.5 text-xs font-mono text-hull-500 text-right">
+                        {% if entry.compressed_size < 1024 %}{{ entry.compressed_size }} B
+                        {% elif entry.compressed_size < 1048576 %}{{ "%.1f" | format(entry.compressed_size / 1024) }} KiB
+                        {% else %}{{ "%.1f" | format(entry.compressed_size / 1048576) }} MiB{% endif %}
+                    </td>
+                    <td class="px-4 py-1.5 text-xs font-mono text-hull-500 text-right">
+                        {% if entry.size > 0 %}{{ "%.0f" | format(entry.compressed_size / entry.size * 100) }}%{% else %}&mdash;{% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="px-4 py-8 text-center text-xs text-hull-600 font-mono">Empty archive</div>
+    {% endif %}
+</div>

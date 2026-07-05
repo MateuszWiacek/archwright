@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% set active_page = "archives" %}
+{% block title %}Archives - Archwright{% endblock %}
+
+{% block content %}
+<h1 class="text-xl font-bold text-hull-100 font-mono tracking-tight mb-6">Archives</h1>
+
+{% if is_multi_config and jobs %}
+<div class="panel rounded-lg px-4 py-3 mb-6">
+    <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-mono text-hull-500 uppercase tracking-wider mr-2">Config</span>
+        {% for item in jobs %}
+        <a href="/archives/?job={{ item.id }}"
+           class="{% if item.id == selected_job_id %}bg-sky-900/50 border-sky-600/50 text-sky-200{% else %}bg-hull-900/50 border-hull-700/50 text-hull-400 hover:text-hull-200 hover:border-hull-600{% endif %} rounded border px-3 py-1.5 text-xs font-mono transition-colors">
+            {{ item.id }}{% if item.error %} !{% endif %}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="rounded border border-red-500/30 bg-red-500/10 px-4 py-3 mb-6">
+    <p class="text-sm text-red-400 font-mono">{{ error }}</p>
+</div>
+{% endif %}
+
+{% if config %}
+<div class="text-xs text-hull-500 font-mono mb-4">
+    target: <span class="text-hull-400">{{ config.target_base_dir }}</span>
+    &middot; retention: {% if config.keep_last == 0 %}unlimited{% else %}{{ config.keep_last }}{% endif %}
+</div>
+{% endif %}
+
+{% if archives %}
+<div class="panel rounded-lg overflow-hidden">
+    <table class="min-w-full">
+        <thead>
+            <tr class="border-b border-hull-700/50">
+                <th class="px-4 py-2.5 text-left text-xs font-mono font-bold text-hull-400 uppercase tracking-wider">Archive</th>
+                <th class="px-4 py-2.5 text-right text-xs font-mono font-bold text-hull-400 uppercase tracking-wider">Size</th>
+                <th class="px-4 py-2.5 text-left text-xs font-mono font-bold text-hull-400 uppercase tracking-wider">Modified</th>
+                <th class="px-4 py-2.5 text-center text-xs font-mono font-bold text-hull-400 uppercase tracking-wider">Log</th>
+                <th class="px-4 py-2.5 text-right text-xs font-mono font-bold text-hull-400 uppercase tracking-wider">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-hull-800/50">
+            {% for archive in archives | reverse %}
+            <tr class="hover:bg-hull-800/30 transition-colors">
+                <td class="px-4 py-2.5">
+                    {% if selected_job and selected_job.executor == "local" %}
+                        <button class="text-sm font-mono text-sky-400 hover:text-sky-300 transition-colors"
+                                hx-get="/archives/{{ archive.filename }}/contents{{ job_query | default('') }}"
+                                hx-target="#archive-contents"
+                                hx-swap="innerHTML">
+                            {{ archive.filename }}
+                        </button>
+                    {% else %}
+                        <span class="text-sm font-mono text-hull-300">{{ archive.filename }}</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-2.5 text-right text-sm font-mono text-hull-400">{{ "%.2f" | format(archive.size_mb) }} MiB</td>
+                <td class="px-4 py-2.5 text-sm font-mono text-hull-400">{{ archive.modified.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td class="px-4 py-2.5 text-center">
+                    {% if archive.has_log and selected_job and selected_job.executor == "local" %}
+                    <a href="/logs/{{ archive.filename.replace('.zip', '.log') }}{{ job_query | default('') }}"
+                       class="text-sm font-mono text-sky-500 hover:text-sky-400 transition-colors">view</a>
+                    {% else %}
+                    <span class="text-hull-700">--</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-2.5 text-right">
+                    {% if selected_job and selected_job.executor == "local" %}
+                    <a href="/archives/{{ archive.filename }}/download{{ job_query | default('') }}"
+                       class="text-sm font-mono text-hull-400 hover:text-hull-200 transition-colors"
+                       hx-boost="false">download</a>
+                    {% else %}
+                    <span class="text-sm font-mono text-hull-700">remote</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div id="archive-contents" class="mt-4"></div>
+
+{% else %}
+<div class="panel rounded-lg px-4 py-12 text-center">
+    <p class="text-sm text-hull-600 font-mono">No archives found</p>
+</div>
+{% endif %}
+{% endblock %}

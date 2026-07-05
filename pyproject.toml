@@ -7,7 +7,11 @@ name = "archwright"
 version = "1.0.0"
 description = "Config-driven backup tool with database dumps, service hooks, restore, and rotation."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0-or-later" }
+authors = [
+    { name = "Mateusz Wiacek" },
+]
 dependencies = [
     "PyYAML>=6.0",
 ]
@@ -16,11 +20,10 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -28,15 +31,38 @@ classifiers = [
     "Topic :: Utilities",
 ]
 
+[project.optional-dependencies]
+web = [
+    "fastapi>=0.104",
+    "uvicorn[standard]>=0.24",
+    "jinja2>=3.1",
+    # python-multipart floors track disclosed advisories: < 0.0.27 (three 2025
+    # CVEs), and < 0.0.30 / < 0.0.31 (GHSA-6jv3-5f52-599m, GHSA-5rvq-cxj2-64vf,
+    # GHSA-v9pg-7xvm-68hf disclosed mid-2026).
+    "python-multipart>=0.0.31",
+    "httpx>=0.24",
+    # Starlette TestClient prefers httpx2 and warns when it has to fall back
+    # to legacy httpx.
+    "httpx2>=2.5.0",
+    # python-dotenv < 1.2.2 has GHSA-mf9w-mj56-hr94. Pulled in transitively
+    # by uvicorn[standard]; pin explicitly so pip-compile honours the floor.
+    "python-dotenv>=1.2.2",
+    # starlette < 1.3.1 carries five advisories (PYSEC-2026-161,
+    # GHSA-wqp7-x3pw-xc5r, GHSA-x746-7m8f-x49c, GHSA-82w8-qh3p-5jfq,
+    # GHSA-jp82-jpqv-5vv3). FastAPI only floors it at >=0.46, so pin here.
+    "starlette>=1.3.1",
+]
+
 [project.scripts]
 archwright = "backup.cli:main"
 
 [tool.setuptools]
-packages = ["backup"]
+packages = ["backup", "archwright_web", "archwright_web.routers", "archwright_web.services"]
 include-package-data = false
 
 [tool.setuptools.package-data]
 backup = ["backup-config.example.yaml"]
+archwright_web = ["templates/**/*.html", "static/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -47,5 +73,6 @@ markers = [
     "e2e: Full pipeline and CLI tests",
     "edge: Edge cases and resilience",
     "restore: Restore pipeline tests",
+    "web: Web UI service and route tests",
 ]
 addopts = "-v --tb=short --strict-markers"

@@ -30,8 +30,8 @@ import pytest
 import yaml
 
 from backup.archive import create_archive
-from backup.cli import run
 from backup.collector import collect_files
+from backup.orchestrator import run
 from backup.config import load_config
 from backup.constants import EXIT_ERROR, EXIT_SUCCESS
 from backup.db_dump import (
@@ -630,7 +630,7 @@ class TestDbDumpCliIntegration:
             encoding="utf-8",
         )
 
-        with patch("backup.cli.collect_files", side_effect=ValueError("synthetic failure")):
+        with patch("backup.orchestrator.collect_files", side_effect=ValueError("synthetic failure")):
             assert run(config_path, dry_run=False) == EXIT_ERROR
 
         assert list(dest.glob(".db_staging_*")) == []

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% set active_page = "restore" %}
+{% block title %}Confirm Restore - Archwright{% endblock %}
+
+{% block content %}
+<h1 class="text-xl font-bold text-hull-100 font-mono tracking-tight mb-2">Confirm Restore</h1>
+<p class="text-xs text-hull-500 font-mono mb-6">Archive: <span class="text-hull-300">{{ archive }}</span></p>
+
+{% if error %}
+<div class="rounded border border-red-500/30 bg-red-500/10 px-4 py-3 mb-6">
+    <p class="text-sm text-red-400 font-mono">{{ error }}</p>
+</div>
+{% endif %}
+
+<div class="panel rounded-lg p-6 max-w-2xl">
+    <div class="rounded border border-amber-500/30 bg-amber-500/10 px-4 py-3 mb-6">
+        <p class="text-sm text-amber-400 font-mono font-bold mb-1">Warning: This action will write files to disk</p>
+        <p class="text-xs text-amber-400/70 font-mono">
+            {{ plan | length }} file(s) will be extracted.
+            {% if conflicts %}{{ conflicts | length }} existing file(s) will be overwritten.{% endif %}
+        </p>
+    </div>
+
+    <div class="mb-6">
+        <h3 class="text-xs font-mono font-bold text-hull-400 uppercase tracking-wider mb-2">Summary</h3>
+        <ul class="text-sm font-mono text-hull-300 space-y-1">
+            <li>Files to restore: <span class="text-hull-100">{{ plan | length }}</span></li>
+            {% if conflicts %}
+            <li>Conflicts: <span class="text-amber-400">{{ conflicts | length }}</span></li>
+            <li>Overwrite: <span class="{% if overwrite %}text-amber-400{% else %}text-hull-500{% endif %}">{{ "Yes" if overwrite else "No" }}</span></li>
+            {% endif %}
+            {% if prefixes %}
+            <li>Prefixes: <span class="text-hull-400">{{ prefixes | join(", ") }}</span></li>
+            {% endif %}
+        </ul>
+    </div>
+
+    <form method="post" action="/restore/execute{{ job_query | default('') }}">
+        <input type="hidden" name="archive" value="{{ archive }}">
+        <input type="hidden" name="prefix_filter_applied" value="1">
+        {% for prefix in prefixes %}
+        <input type="hidden" name="prefixes" value="{{ prefix }}">
+        {% endfor %}
+        {% if overwrite %}
+        <input type="hidden" name="overwrite" value="on">
+        {% endif %}
+
+        <label class="block mb-4">
+            <span class="text-xs font-mono text-hull-400 uppercase tracking-wider">Type RESTORE to confirm</span>
+            <input type="text" name="confirmation" autocomplete="off"
+                   class="mt-1 block w-full rounded border border-hull-600 px-3 py-2 text-sm font-mono"
+                   placeholder="RESTORE">
+        </label>
+
+        <div class="flex items-center gap-3">
+            <button type="button" onclick="history.back()"
+                    class="rounded border border-hull-600 px-4 py-2 text-sm font-mono text-hull-400 hover:text-hull-200 hover:border-hull-400 transition-colors">
+                Back
+            </button>
+            <button type="submit"
+                    class="rounded bg-red-600 hover:bg-red-500 px-4 py-2 text-sm font-mono font-bold text-white transition-colors">
+                Execute Restore
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

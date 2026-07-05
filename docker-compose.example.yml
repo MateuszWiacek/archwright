@@ -1,0 +1,27 @@
+services:
+  archwright-web:
+    build:
+      context: .
+    image: archwright:local
+    command: ["serve", "--config-dir", "/config", "--host", "0.0.0.0", "--port", "8471"]
+    # Inventory mode for a central control plane:
+    # command: ["serve", "--inventory", "/inventory.yaml", "--host", "0.0.0.0", "--port", "8471"]
+    ports:
+      - "127.0.0.1:8471:8471"
+    volumes:
+      - "${ARCHWRIGHT_CONFIG_DIR:-./config}:/config:ro"
+      - "${ARCHWRIGHT_BACKUP_DIR:-./backups}:/backups"
+      # Inventory mode:
+      # - "${ARCHWRIGHT_INVENTORY:-./inventory.yaml}:/inventory.yaml:ro"
+      # - "${HOME}/.ssh/known_hosts:/home/archwright/.ssh/known_hosts:ro"
+      # - "${HOME}/.ssh/archwright_gui_ed25519:/home/archwright/.ssh/id_ed25519:ro"
+      # Mount source paths if the web UI should run local backup/restore jobs.
+      # The YAML config must use the container path, for example /sources/app.
+      # - "/srv/my-app:/sources/my-app:ro"
+      #
+      # Optional: needed for docker_postgres and docker stop/start hooks.
+      # This is powerful host access. Use only on trusted machines.
+      # - "/var/run/docker.sock:/var/run/docker.sock"
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped

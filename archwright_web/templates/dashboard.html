@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% set active_page = "dashboard" %}
+{% block title %}Dashboard - Archwright{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="rounded border border-red-500/30 bg-red-500/10 px-4 py-3 mb-6">
+    <p class="text-sm text-red-400 font-mono">{{ error }}</p>
+</div>
+{% endif %}
+
+{% if is_multi_config and jobs %}
+<div class="panel rounded-lg px-4 py-3 mb-6">
+    <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-mono text-hull-500 uppercase tracking-wider mr-2">Config</span>
+        {% for item in jobs %}
+        <a href="/?job={{ item.id }}"
+           class="{% if item.id == selected_job_id %}bg-sky-900/50 border-sky-600/50 text-sky-200{% else %}bg-hull-900/50 border-hull-700/50 text-hull-400 hover:text-hull-200 hover:border-hull-600{% endif %} rounded border px-3 py-1.5 text-xs font-mono transition-colors">
+            {{ item.id }}{% if item.error %} !{% endif %}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if config %}
+<!-- Header -->
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-xl font-bold text-hull-100 font-mono tracking-tight">{{ config.backup_name }}</h1>
+        <p class="text-xs text-hull-500 font-mono mt-1">{{ config_path }}</p>
+    </div>
+    <div class="flex gap-2">
+        <button hx-post="/jobs/validate{{ job_query | default('') }}" hx-target="#job-panel" hx-swap="innerHTML"
+                class="rounded border border-hull-600 bg-hull-800 px-3 py-1.5 text-xs font-mono font-medium text-hull-200 hover:bg-hull-700 hover:border-hull-500 transition-colors">
+            VALIDATE
+        </button>
+        <button hx-post="/jobs/backup/dry-run{{ job_query | default('') }}" hx-target="#job-panel" hx-swap="innerHTML"
+                class="rounded border border-sky-700/50 bg-sky-900/30 px-3 py-1.5 text-xs font-mono font-medium text-sky-300 hover:bg-sky-800/40 hover:border-sky-600/50 transition-colors">
+            DRY RUN
+        </button>
+        <button hx-post="/jobs/backup{{ job_query | default('') }}" hx-target="#job-panel" hx-swap="innerHTML"
+                hx-confirm="{% if selected_job and selected_job.executor == 'ssh' %}Start a remote live backup on {{ selected_job.node_id }}? This will create an archive on that node and rotate old ones.{% else %}Start a live backup? This will create an archive and rotate old ones.{% endif %}"
+                class="rounded border border-emerald-700/50 bg-emerald-900/30 px-3 py-1.5 text-xs font-mono font-medium text-emerald-300 hover:bg-emerald-800/40 hover:border-emerald-600/50 transition-colors">
+            BACKUP NOW
+        </button>
+    </div>
+</div>
+
+<!-- Job status panel -->
+<div id="job-panel" class="panel rounded-lg p-4 mb-6">
+    {% include "partials/_job_status.html" %}
+</div>
+
+<!-- Stats grid -->
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+    <div class="panel rounded-lg px-4 py-4">
+        <dt class="text-xs font-mono text-hull-500 uppercase tracking-wider">Archives</dt>
+        <dd class="mt-1 text-2xl font-bold text-hull-100 font-mono">{{ archives | length }}</dd>
+    </div>
+    <div class="panel rounded-lg px-4 py-4">
+        <dt class="text-xs font-mono text-hull-500 uppercase tracking-wider">Retention</dt>
+        <dd class="mt-1 text-2xl font-bold text-hull-100 font-mono">
+            {% if config.keep_last == 0 %}&infin;{% else %}{{ config.keep_last }}{% endif %}
+        </dd>
+    </div>
+    <div class="panel rounded-lg px-4 py-4">
+        <dt class="text-xs font-mono text-hull-500 uppercase tracking-wider">Sources</dt>
+        <dd class="mt-1 text-2xl font-bold text-hull-100 font-mono">{{ config.subfolders | length }}</dd>
+    </div>
+    <div class="panel rounded-lg px-4 py-4">
+        <dt class="text-xs font-mono text-hull-500 uppercase tracking-wider">Databases</dt>
+        <dd class="mt-1 text-2xl font-bold text-hull-100 font-mono">{{ config.databases | length }}</dd>
+    </div>
+</div>
+
+<!-- Total size -->
+{% if archives %}
+<div class="panel rounded-lg px-4 py-4 mb-6">
+    <dt class="text-xs font-mono text-hull-500 uppercase tracking-wider">Total Archive Size</dt>
+    <dd class="mt-1 text-2xl font-bold text-hull-100 font-mono">
+        {{ "%.1f" | format(archives | map(attribute='size_mb') | sum) }} <span class="text-sm text-hull-400">MiB</span>
+    </dd>
+    <p class="mt-1 text-xs text-hull-500 font-mono">
+        latest: {{ archives[-1].filename }} ({{ archives[-1].modified.strftime('%Y-%m-%d %H:%M') }})
+    </p>
+</div>
+{% endif %}
+
+<!-- Two columns: sources + recent archives -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <!-- Sources -->
+    <div class="panel rounded-lg">
+        <div class="px-4 py-3 border-b border-hull-700/50">
+            <h3 class="text-xs font-mono font-bold text-hull-300 uppercase tracking-wider">Backup Sources</h3>
+        </div>
+        <div class="divide-y divide-hull-800/50">
+            {% for sf in config.subfolders %}
+            <div class="px-4 py-2.5">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-mono text-hull-200">{{ sf.folder_name }}/{{ sf.subfolder_name }}</span>
+                    <span class="rounded bg-sky-900/40 border border-sky-700/30 px-2 py-0.5 text-xs font-mono text-sky-300">{{ sf.include }}</span>
+                </div>
+                <p class="text-xs text-hull-500 font-mono mt-0.5 truncate">{{ sf.source_dir }}</p>
+                {% if sf.pre_command %}
+                <p class="text-xs text-amber-500/80 font-mono mt-0.5">hook: {{ sf.pre_command }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Recent archives -->
+    <div class="panel rounded-lg">
+        <div class="px-4 py-3 border-b border-hull-700/50">
+            <h3 class="text-xs font-mono font-bold text-hull-300 uppercase tracking-wider">Recent Archives</h3>
+        </div>
+        {% if archives %}
+        <div class="divide-y divide-hull-800/50">
+            {% for archive in archives[-5:] | reverse %}
+            <div class="px-4 py-2.5">
+                <div class="flex items-center justify-between">
+                    {% if selected_job and selected_job.executor == "local" %}
+                        <button hx-get="/archives/{{ archive.filename }}/contents{{ job_query | default('') }}"
+                                hx-target="#archive-detail" hx-swap="innerHTML" hx-push-url="false"
+                                class="text-sm font-mono text-sky-400 hover:text-sky-300 transition-colors">
+                            {{ archive.filename }}
+                        </button>
+                    {% else %}
+                        <span class="text-sm font-mono text-hull-300">{{ archive.filename }}</span>
+                    {% endif %}
+                    <span class="text-xs font-mono text-hull-500">{{ "%.1f" | format(archive.size_mb) }} MiB</span>
+                </div>
+                <p class="text-xs text-hull-500 font-mono mt-0.5">{{ archive.modified.strftime('%Y-%m-%d %H:%M') }}
+                    {% if archive.has_log and selected_job and selected_job.executor == "local" %}
+                    &middot; <a href="/logs/{{ archive.filename.replace('.zip', '.log') }}{{ job_query | default('') }}" class="text-sky-500 hover:text-sky-400">log</a>
+                    {% endif %}
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="px-4 py-8 text-center text-xs text-hull-600 font-mono">No archives yet</div>
+        {% endif %}
+    </div>
+</div>
+
+<div id="archive-detail" class="mt-4"></div>
+
+{% endif %}
+{% endblock %}

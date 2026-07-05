@@ -18,7 +18,8 @@ from typing import Dict
 import pytest
 import yaml
 
-from backup.cli import parse_args, run
+from backup.cli import parse_args
+from backup.orchestrator import run
 from backup.constants import EXIT_ERROR, EXIT_SUCCESS, ZIP_EXTERNAL_ATTR
 
 
@@ -425,3 +426,10 @@ class TestCLIArgParsing:
         args = parse_args(["list", "--config", str(tmp_path / "c.yaml")])
         assert args.command == "list"
         assert args.config == tmp_path / "c.yaml"
+
+    @pytest.mark.e2e
+    def test_serve_config_dir_subcommand(self, tmp_path: Path) -> None:
+        args = parse_args(["serve", "--config-dir", str(tmp_path / "configs")])
+        assert args.command == "serve"
+        assert args.config_dir == tmp_path / "configs"
+        assert args.config is None

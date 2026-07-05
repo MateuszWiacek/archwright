@@ -1,0 +1,23 @@
+{% if error %}
+<div class="rounded border border-red-500/30 bg-red-500/10 p-3">
+    <p class="text-xs font-mono text-red-400">{{ error }}</p>
+</div>
+{% elif files %}
+<div class="rounded border border-hull-700/50 bg-hull-900/50 p-3">
+    <p class="text-xs font-mono text-hull-300 mb-2">
+        {{ total_count }} file{{ "s" if total_count != 1 else "" }} matched
+        {% if truncated %}<span class="text-amber-400">(showing first 500)</span>{% endif %}
+    </p>
+    <div class="max-h-48 overflow-y-auto">
+        <ul class="space-y-0.5">
+            {% for f in files %}
+            <li class="text-xs text-hull-400 font-mono truncate">{{ f }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% else %}
+<div class="rounded border border-hull-700/50 bg-hull-900/50 p-3">
+    <p class="text-xs font-mono text-hull-600">No files matched</p>
+</div>
+{% endif %}

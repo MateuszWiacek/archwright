@@ -4,6 +4,107 @@ All notable changes to archwright are documented here.
 
 From `1.0.0` onward, archwright follows Semantic Versioning.
 
+> **About this repository.** This public repository is a curated mirror.
+> Active development, issue tracking, and the full commit history live in
+> a private repository; releases here are published as reviewed
+> snapshots. This changelog is the canonical record of what changed
+> between those snapshots, grouped by theme rather than mapped
+> one-to-one onto individual commits.
+
+## [Unreleased]
+
+This entry covers the web UI and multi-node control work, plus a round
+of supply-chain and CVE hardening, layered on top of the 1.0 CLI.
+
+### Added
+
+- **Web UI** (`archwright serve`):
+  - FastAPI dashboard for a single config or a local config directory
+  - config switcher for `--config-dir`
+  - archive and log browser with in-place ZIP entry inspection
+  - backup, dry-run, and validate triggers
+  - guarded restore wizard (plan, prefix filter, conflict review, typed
+    confirmation, streamed result)
+  - dark "blueprint" theme
+
+- **Multi-node inventory and remote control**:
+  - inventory parser and validation for local and SSH nodes
+  - `archwright serve --inventory`
+  - SSH executor adapter for remote JSON commands, with an example
+    inventory file
+  - SSH-backed config discovery, archive listing, validate, backup
+    dry-run, live backup, restore dry-run planning, and live restore
+    execution surfaced in the web UI
+
+- **Machine-readable CLI output**:
+  - `--json` for `list`, `validate`, `backup --dry-run`, and
+    `restore --dry-run`
+  - a local JSON executor so the web UI drives local and SSH jobs
+    through the same `list --json` contract
+
+- **Docker packaging**:
+  - Dockerfile for the CLI/web UI runtime, base image pinned by digest
+  - compose example for local web UI deployment
+  - Docker docs covering mounts, permissions, and Docker socket usage
+
+- **Security and supply chain**:
+  - `docs/threat-model.md`: trust model, defended boundaries, and the
+    risks the single-tenant design intentionally accepts
+  - GitHub Actions pinned to commit SHAs
+  - hash-pinned lockfile installed with `--require-hashes` in CI and
+    Docker
+  - `bandit` and `pip-audit` CI jobs, plus a `lock-fresh` job that
+    fails if the lockfile drifts from `pyproject.toml`
+
+- **License**: AGPL-3.0-or-later.
+
+- **Web test coverage**: route tests (dashboard, config preview,
+  archives, logs, jobs, restore) and service tests (config discovery,
+  serialization, archive streaming, glob preview, job locking, SSH
+  executor).
+
+### Changed
+
+- **CLI internals refactored** with no change in behavior:
+  - the 1100-line `cli.py` split into `orchestrator.py` (pipelines),
+    `json_output.py` (formatters), and a thin argparse dispatcher
+  - restore route logic extracted into a `RestoreOrchestrator` service;
+    local-vs-remote job dispatch deduplicated behind one helper
+- **Async responsiveness**: blocking executor calls (SSH, in-process
+  CLI, archive listing) offloaded to worker threads so web routes no
+  longer stall the event loop.
+- **Minimum Python raised** from 3.8 to 3.10 (3.8/3.9 end of life; the
+  `python-multipart` CVE fix requires 3.10).
+- **Documentation**: web UI usage, the multi-config/multi-node
+  control-plane roadmap, and `archwright serve` deployment are now
+  documented explicitly.
+
+### Fixed
+
+- **Dependency CVEs**: bumped `starlette`, `python-multipart`, and
+  `python-dotenv` past disclosed advisories; the pinned set is clean
+  under `pip-audit`.
+- **Error handling**: a global handler maps input `ValueError`s to HTTP
+  400 instead of 500, replacing repeated per-route try/except blocks.
+- **Temp-file race**: config serialization no longer uses the
+  deprecated `tempfile.mktemp()` (TOCTOU, CWE-377).
+- **Remote JSON cap**: the SSH executor refuses to parse responses over
+  16 MiB, so a misbehaving node cannot exhaust host memory.
+- **Web restore filtering**: selected prefixes in the plan now match the
+  prefixes sent to confirm and execute.
+- **Web path safety**: log viewing rejects traversal outside the
+  configured backup directory.
+- **Web archive handling**: bad ZIP files return a controlled error
+  instead of crashing the server.
+- **Web archive listing errors**: listing failures surface to the UI
+  instead of looking like an empty backup set.
+- **Restore defense in depth**: background restore validates archive
+  filenames before joining paths.
+- **Download headers**: ZIP entry downloads use quoted
+  `Content-Disposition` headers.
+- **SSH executor defaults**: remote commands use `BatchMode=yes` and a
+  bounded connect timeout.
+
 ## [1.0.0]
 
 ### Added

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% set active_page = "restore" %}
+{% block title %}Restore Result - Archwright{% endblock %}
+
+{% block content %}
+<h1 class="text-xl font-bold text-hull-100 font-mono tracking-tight mb-6">Restore</h1>
+
+{% if error %}
+<div class="rounded border border-red-500/30 bg-red-500/10 px-4 py-3 mb-6">
+    <p class="text-sm text-red-400 font-mono">{{ error }}</p>
+</div>
+{% else %}
+<div class="rounded border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 mb-6">
+    <p class="text-sm text-emerald-400 font-mono">Restore job started.</p>
+</div>
+{% endif %}
+
+{% if job %}
+<div class="panel rounded-lg p-6">
+    {% include "partials/_job_status.html" %}
+</div>
+{% endif %}
+
+<div class="mt-6">
+    <a href="/restore/{{ job_query | default('') }}"
+       class="rounded border border-hull-600 px-4 py-2 text-sm font-mono text-hull-400 hover:text-hull-200 hover:border-hull-400 transition-colors">
+        Start New Restore
+    </a>
+</div>
+{% endblock %}

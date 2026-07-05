@@ -1,0 +1,433 @@
+{% extends "base.html" %}
+{% set active_page = "config" %}
+{% block title %}Config Editor - Archwright{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-xl font-bold text-hull-100 font-mono tracking-tight">Config Editor</h1>
+        <p class="text-xs text-hull-500 font-mono mt-1">{{ config_path }}</p>
+    </div>
+    <div class="flex gap-2">
+        <button type="submit" form="config-form" formaction="/config/export{{ job_query | default('') }}" formmethod="post"
+                class="rounded border border-sky-700/50 bg-sky-900/30 px-3 py-1.5 text-xs font-mono font-medium text-sky-300 hover:bg-sky-800/40 hover:border-sky-600/50 transition-colors">
+            EXPORT YAML
+        </button>
+    </div>
+</div>
+
+{% if is_multi_config and jobs %}
+<div class="panel rounded-lg px-4 py-3 mb-6">
+    <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-mono text-hull-500 uppercase tracking-wider mr-2">Config</span>
+        {% for item in jobs %}
+        <a href="/config/?job={{ item.id }}"
+           class="{% if item.id == selected_job_id %}bg-sky-900/50 border-sky-600/50 text-sky-200{% else %}bg-hull-900/50 border-hull-700/50 text-hull-400 hover:text-hull-200 hover:border-hull-600{% endif %} rounded border px-3 py-1.5 text-xs font-mono transition-colors">
+            {{ item.id }}{% if item.error %} !{% endif %}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="rounded border border-red-500/30 bg-red-500/10 px-4 py-3 mb-6">
+    <p class="text-sm text-red-400 font-mono">{{ error }}</p>
+</div>
+{% endif %}
+
+{% if config %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <!-- Left: Form -->
+    <div>
+        <form id="config-form"
+              hx-post="/config/preview-yaml{{ job_query | default('') }}"
+              hx-target="#yaml-output"
+              hx-trigger="input changed delay:400ms from:find input, input changed delay:400ms from:find select"
+              hx-swap="innerHTML">
+
+            <!-- General settings -->
+            <div class="panel rounded-lg mb-4">
+                <div class="px-4 py-3 border-b border-hull-700/50">
+                    <h2 class="text-xs font-mono font-bold text-hull-300 uppercase tracking-wider">General</h2>
+                </div>
+                <div class="px-4 py-4 space-y-3">
+                    <div>
+                        <label class="block text-xs font-mono text-hull-400 mb-1">backup_name</label>
+                        <input type="text" name="backup_name" value="{{ config.backup_name }}"
+                               class="block w-full rounded border text-sm font-mono px-3 py-1.5">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-mono text-hull-400 mb-1">target_base_dir</label>
+                        <input type="text" name="target_base_dir" value="{{ config.target_base_dir }}"
+                               class="block w-full rounded border text-sm font-mono px-3 py-1.5">
+                    </div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-mono text-hull-400 mb-1">keep_last</label>
+                            <input type="number" name="keep_last" value="{{ config.keep_last }}" min="0"
+                                   class="block w-full rounded border text-sm font-mono px-3 py-1.5">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-mono text-hull-400 mb-1">log_level</label>
+                            <select name="log_level" class="block w-full rounded border text-sm font-mono px-3 py-1.5">
+                                {% for level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] %}
+                                <option value="{{ level }}" {% if config.log_level == level %}selected{% endif %}>{{ level }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-mono text-hull-400 mb-1">hook_timeout</label>
+                            <input type="number" name="hook_timeout" value="{{ config.hook_timeout }}" min="1"
+                                   class="block w-full rounded border text-sm font-mono px-3 py-1.5">
+                        </div>
+                    </div>
+                    <input type="hidden" name="dump_timeout" value="{{ config.dump_timeout }}">
+                </div>
+            </div>
+
+            <!-- Subfolders -->
+            <div class="panel rounded-lg mb-4">
+                <div class="px-4 py-3 border-b border-hull-700/50 flex items-center justify-between">
+                    <h2 class="text-xs font-mono font-bold text-hull-300 uppercase tracking-wider">Structure</h2>
+                    <button type="button" onclick="addSubfolder()"
+                            class="text-xs font-mono text-sky-400 hover:text-sky-300 transition-colors">+ ADD</button>
+                </div>
+                <div id="subfolders-container" class="divide-y divide-hull-800/50">
+                    {% for sf in config.subfolders %}
+                    <div class="px-4 py-3 subfolder-row" data-idx="{{ loop.index0 }}">
+                        <div class="grid grid-cols-2 gap-3 mb-2">
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">folder</label>
+                                <input type="text" name="sf_{{ loop.index0 }}_folder" value="{{ sf.folder_name }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">subfolder</label>
+                                <input type="text" name="sf_{{ loop.index0 }}_subfolder" value="{{ sf.subfolder_name }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1">
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="block text-xs font-mono text-hull-500 mb-1">source_dir</label>
+                            <input type="text" name="sf_{{ loop.index0 }}_source_dir" value="{{ sf.source_dir }}"
+                                   class="block w-full rounded border text-sm font-mono px-2 py-1 sf-source-dir">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 mb-2">
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">include</label>
+                                <input type="text" name="sf_{{ loop.index0 }}_include" value="{{ sf.include }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1 sf-include">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">exclude</label>
+                                <input type="text" name="sf_{{ loop.index0 }}_exclude" value="{{ sf.exclude or '' }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1 sf-exclude">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 mb-2">
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">pre_command</label>
+                                <input type="text" name="sf_{{ loop.index0 }}_pre_command" value="{{ sf.pre_command or '' }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="optional">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">post_command</label>
+                                <input type="text" name="sf_{{ loop.index0 }}_post_command" value="{{ sf.post_command or '' }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="optional">
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <button type="button"
+                                    class="text-xs font-mono text-sky-400 hover:text-sky-300 transition-colors"
+                                    hx-post="/preview/glob"
+                                    hx-vals='js:{"source_dir": this.closest(".subfolder-row").querySelector(".sf-source-dir").value, "include": this.closest(".subfolder-row").querySelector(".sf-include").value, "exclude": this.closest(".subfolder-row").querySelector(".sf-exclude").value}'
+                                    hx-target="next .preview-target"
+                                    hx-swap="innerHTML">
+                                PREVIEW FILES
+                            </button>
+                            <button type="button" onclick="this.closest('.subfolder-row').remove()"
+                                    class="text-xs font-mono text-red-400 hover:text-red-300 transition-colors">REMOVE</button>
+                        </div>
+                        <div class="preview-target mt-2"></div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Databases -->
+            <div class="panel rounded-lg mb-4">
+                <div class="px-4 py-3 border-b border-hull-700/50 flex items-center justify-between">
+                    <h2 class="text-xs font-mono font-bold text-hull-300 uppercase tracking-wider">Databases</h2>
+                    <button type="button" onclick="addDatabase()"
+                            class="text-xs font-mono text-sky-400 hover:text-sky-300 transition-colors">+ ADD</button>
+                </div>
+                <div id="databases-container" class="divide-y divide-hull-800/50">
+                    {% for db in config.databases %}
+                    <div class="px-4 py-3 database-row" data-idx="{{ loop.index0 }}">
+                        <div class="grid grid-cols-2 gap-3 mb-2">
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">name</label>
+                                <input type="text" name="db_{{ loop.index0 }}_name" value="{{ db.name }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">provider</label>
+                                <select name="db_{{ loop.index0 }}_provider" class="block w-full rounded border text-sm font-mono px-2 py-1">
+                                    <option value="postgres" {% if db.provider == 'postgres' %}selected{% endif %}>postgres</option>
+                                    <option value="docker_postgres" {% if db.provider == 'docker_postgres' %}selected{% endif %}>docker_postgres</option>
+                                    <option value="sqlite" {% if db.provider == 'sqlite' %}selected{% endif %}>sqlite</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 mb-2">
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">dbname</label>
+                                <input type="text" name="db_{{ loop.index0 }}_dbname" value="{{ db.dbname or '' }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">host</label>
+                                <input type="text" name="db_{{ loop.index0 }}_host" value="{{ db.host }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-3 mb-2">
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">port</label>
+                                <input type="number" name="db_{{ loop.index0 }}_port" value="{{ db.port }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">user</label>
+                                <input type="text" name="db_{{ loop.index0 }}_user" value="{{ db.user }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">container</label>
+                                <input type="text" name="db_{{ loop.index0 }}_container" value="{{ db.container or '' }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="docker only">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 mb-2">
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">db_path (sqlite)</label>
+                                <input type="text" name="db_{{ loop.index0 }}_db_path" value="{{ db.db_path or '' }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="/path/to/db.sqlite3">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">password</label>
+                                <input type="password" name="db_{{ loop.index0 }}_password" value="{{ db.password or '' }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="optional">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-3 mb-2">
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">pg_dump_path</label>
+                                <input type="text" name="db_{{ loop.index0 }}_pg_dump_path" value="{{ db.pg_dump_path }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">docker_path</label>
+                                <input type="text" name="db_{{ loop.index0 }}_docker_path" value="{{ db.docker_path }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">sqlite3_path</label>
+                                <input type="text" name="db_{{ loop.index0 }}_sqlite3_path" value="{{ db.sqlite3_path }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 mb-2">
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">stop_command</label>
+                                <input type="text" name="db_{{ loop.index0 }}_stop_command" value="{{ db.stop_command or '' }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="optional">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-mono text-hull-500 mb-1">start_command</label>
+                                <input type="text" name="db_{{ loop.index0 }}_start_command" value="{{ db.start_command or '' }}"
+                                       class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="optional">
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="block text-xs font-mono text-hull-500 mb-1">extra_args (comma-separated)</label>
+                            <input type="text" name="db_{{ loop.index0 }}_extra_args" value="{{ db.extra_args | join(', ') }}"
+                                   class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="--no-owner, --if-exists">
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="button" onclick="this.closest('.database-row').remove()"
+                                    class="text-xs font-mono text-red-400 hover:text-red-300 transition-colors">REMOVE</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Right: YAML preview -->
+    <div class="lg:sticky lg:top-6 lg:self-start">
+        <div class="panel-bright rounded-lg">
+            <div class="px-4 py-3 border-b border-hull-700/50 flex items-center justify-between">
+                <h2 class="text-xs font-mono font-bold text-hull-300 uppercase tracking-wider">YAML Output</h2>
+                <span class="htmx-indicator text-xs font-mono text-hull-600">syncing...</span>
+            </div>
+            <div id="yaml-output" class="px-4 py-4">
+                <pre class="text-xs font-mono text-sky-300/80 bg-hull-950 rounded border border-hull-800 p-4 overflow-x-auto whitespace-pre-wrap"><code>{{ yaml_text }}</code></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let sfCounter = {{ config.subfolders | length }};
+let dbCounter = {{ config.databases | length }};
+
+function addSubfolder() {
+    const i = sfCounter++;
+    const html = `
+    <div class="px-4 py-3 subfolder-row" data-idx="${i}">
+        <div class="grid grid-cols-2 gap-3 mb-2">
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">folder</label>
+                <input type="text" name="sf_${i}_folder" value="" class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="my_app">
+            </div>
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">subfolder</label>
+                <input type="text" name="sf_${i}_subfolder" value="" class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="config">
+            </div>
+        </div>
+        <div class="mb-2">
+            <label class="block text-xs font-mono text-hull-500 mb-1">source_dir</label>
+            <input type="text" name="sf_${i}_source_dir" value="" class="block w-full rounded border text-sm font-mono px-2 py-1 sf-source-dir" placeholder="/path/to/source">
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-2">
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">include</label>
+                <input type="text" name="sf_${i}_include" value="*" class="block w-full rounded border text-sm font-mono px-2 py-1 sf-include">
+            </div>
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">exclude</label>
+                <input type="text" name="sf_${i}_exclude" value="" class="block w-full rounded border text-sm font-mono px-2 py-1 sf-exclude">
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-2">
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">pre_command</label>
+                <input type="text" name="sf_${i}_pre_command" value="" class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="optional">
+            </div>
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">post_command</label>
+                <input type="text" name="sf_${i}_post_command" value="" class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="optional">
+            </div>
+        </div>
+        <div class="flex items-center justify-between">
+            <button type="button"
+                    class="text-xs font-mono text-sky-400 hover:text-sky-300 transition-colors"
+                    hx-post="/preview/glob"
+                    hx-vals='js:{"source_dir": this.closest(".subfolder-row").querySelector(".sf-source-dir").value, "include": this.closest(".subfolder-row").querySelector(".sf-include").value, "exclude": this.closest(".subfolder-row").querySelector(".sf-exclude").value}'
+                    hx-target="next .preview-target"
+                    hx-swap="innerHTML">
+                PREVIEW FILES
+            </button>
+            <button type="button" onclick="this.closest('.subfolder-row').remove()"
+                    class="text-xs font-mono text-red-400 hover:text-red-300 transition-colors">REMOVE</button>
+        </div>
+        <div class="preview-target mt-2"></div>
+    </div>`;
+    document.getElementById('subfolders-container').insertAdjacentHTML('beforeend', html);
+    htmx.process(document.getElementById('subfolders-container').lastElementChild);
+}
+
+function addDatabase() {
+    const i = dbCounter++;
+    const html = `
+    <div class="px-4 py-3 database-row" data-idx="${i}">
+        <div class="grid grid-cols-2 gap-3 mb-2">
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">name</label>
+                <input type="text" name="db_${i}_name" value="" class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="my_database">
+            </div>
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">provider</label>
+                <select name="db_${i}_provider" class="block w-full rounded border text-sm font-mono px-2 py-1">
+                    <option value="postgres">postgres</option>
+                    <option value="docker_postgres">docker_postgres</option>
+                    <option value="sqlite">sqlite</option>
+                </select>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-2">
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">dbname</label>
+                <input type="text" name="db_${i}_dbname" value="" class="block w-full rounded border text-sm font-mono px-2 py-1">
+            </div>
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">host</label>
+                <input type="text" name="db_${i}_host" value="localhost" class="block w-full rounded border text-sm font-mono px-2 py-1">
+            </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3 mb-2">
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">port</label>
+                <input type="number" name="db_${i}_port" value="5432" class="block w-full rounded border text-sm font-mono px-2 py-1">
+            </div>
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">user</label>
+                <input type="text" name="db_${i}_user" value="postgres" class="block w-full rounded border text-sm font-mono px-2 py-1">
+            </div>
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">container</label>
+                <input type="text" name="db_${i}_container" value="" class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="docker only">
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-2">
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">db_path (sqlite)</label>
+                <input type="text" name="db_${i}_db_path" value="" class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="/path/to/db.sqlite3">
+            </div>
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">password</label>
+                <input type="password" name="db_${i}_password" value="" class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="optional">
+            </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3 mb-2">
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">pg_dump_path</label>
+                <input type="text" name="db_${i}_pg_dump_path" value="pg_dump" class="block w-full rounded border text-sm font-mono px-2 py-1">
+            </div>
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">docker_path</label>
+                <input type="text" name="db_${i}_docker_path" value="docker" class="block w-full rounded border text-sm font-mono px-2 py-1">
+            </div>
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">sqlite3_path</label>
+                <input type="text" name="db_${i}_sqlite3_path" value="sqlite3" class="block w-full rounded border text-sm font-mono px-2 py-1">
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-2">
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">stop_command</label>
+                <input type="text" name="db_${i}_stop_command" value="" class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="optional">
+            </div>
+            <div>
+                <label class="block text-xs font-mono text-hull-500 mb-1">start_command</label>
+                <input type="text" name="db_${i}_start_command" value="" class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="optional">
+            </div>
+        </div>
+        <div class="mb-2">
+            <label class="block text-xs font-mono text-hull-500 mb-1">extra_args (comma-separated)</label>
+            <input type="text" name="db_${i}_extra_args" value="" class="block w-full rounded border text-sm font-mono px-2 py-1" placeholder="--no-owner, --if-exists">
+        </div>
+        <div class="flex justify-end">
+            <button type="button" onclick="this.closest('.database-row').remove()"
+                    class="text-xs font-mono text-red-400 hover:text-red-300 transition-colors">REMOVE</button>
+        </div>
+    </div>`;
+    document.getElementById('databases-container').insertAdjacentHTML('beforeend', html);
+    htmx.process(document.getElementById('databases-container').lastElementChild);
+}
+</script>
+{% endif %}
+{% endblock %}
